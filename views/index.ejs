@@ -11,6 +11,7 @@
         <input type="text" name="MaSP" placeholder="MaSP">
         <input type="text" name="TenSP" placeholder="TenSP">
         <input type="number" name="SoLuong" placeholder="SoLuong">
+        <input type="file" name="image">
         <input type="submit" value="Submit"/>
     </form>
     <div class="content">
@@ -24,6 +25,7 @@
                     <th>Mã SP</th>
                     <th>Tên SP</th>
                     <th>Số Lượng</th>
+                    <th>Hinh anh</th>
                     <th>Chọn</th>
                 </tr>
                 <% for (let i = 0; i < sanPhams.length; i++) { %>
@@ -31,6 +33,7 @@
                         <td><%= sanPhams[i].MaSP%></td>
                         <td><%= sanPhams[i].TenSP%></td>
                         <td><%= sanPhams[i].SoLuong %></td>
+                        <td><img width="50px" src="<%= sanPhams[i].url %>" /></td>
                         <td><input type="checkbox" name="chon" value=<%= sanPhams[i].MaSP  %> /></td>
                     </tr>
                 <% } %>

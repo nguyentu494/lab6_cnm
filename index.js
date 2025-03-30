@@ -1,5 +1,7 @@
 const express = require('express');
 const app = express();
+const path = require('path')
+const { v4: uuid } = require("uuid")
 require('dotenv').config()
 
 app.use(express.json({extended: false}));  
@@ -14,16 +16,47 @@ const config = new AWS.Config({
     region: 'us-east-1'
 });
 AWS.config = config;
+const s3 = new AWS.S3()
 
 app.listen(3000, () => {
     console.log("Server is running on port 3000");
 });
 
+
 const docClient = new AWS.DynamoDB.DocumentClient();
 const tableName = "SanPham";
 
+
 const multer = require('multer');
-const upload = multer();
+
+const storage = multer.memoryStorage({
+    destination(req, file, callback){
+        callback(null, '');
+    },
+});
+
+function checkFileType(file, cb){
+    const fileTypes = /jpeg|jpg|png|gif/;
+
+    const extname = fileTypes.test(path.extname(file.originalname).toLowerCase())
+    const minetype = fileTypes.test(file.mimetype)
+
+
+    if (extname && minetype){
+        return cb(null,true)
+    }
+
+    return cb("Error: Image Only")
+}   
+
+const upload = multer({
+    storage,
+    limits: { fileSize:2000000 }, 
+    fileFilter(req, file, cb){
+        console.log(file)
+        checkFileType(file, cb);
+    }
+});
 
 app.get("/", (request, response) => {
     const params = { TableName: tableName };
@@ -37,27 +70,46 @@ app.get("/", (request, response) => {
     });
 });
 
+const CLOUD_FRONT_URL = 'https://d3gwzzvwt1bn1m.cloudfront.net'
 
-app.post("/", upload.fields([]), (req, res) => {
+app.post("/", upload.single('image'), (req, res) => {
     const { MaSP, TenSP, SoLuong } = req.body;
+    const image = req.file.originalname.split(".");
 
+    const fileType = image[image.length-1];
+
+    const filePath = `${uuid() + Date.now().toString()}.${fileType}`
     const params = {
-        TableName: tableName,
-        Item: {
-            "MaSP": MaSP,
-            "TenSP": TenSP,
-            "SoLuong": SoLuong
-        }
-    };
+        Bucket: "lab7-bukets3",
+        Key: filePath,
+        Body: req.file.buffer
+    }
 
-
-    docClient.put(params, (err, data) => {
-        if (err) {
-            return res.send("Internal Server Error");
-        } else {
-            return res.redirect("/");
+    s3.upload(params, (error, data) =>{
+        if(error) {
+            console.log('error = ', error)
+            return res.send('Internal Server Error')
+        }else{
+            const newItem = {
+                TableName: tableName,
+                Item: {
+                    "MaSP": MaSP,
+                    "TenSP": TenSP,
+                    "SoLuong": SoLuong,
+                    "url": `${CLOUD_FRONT_URL}/${filePath}`
+                }
+            };
+        
+        
+            docClient.put(newItem, (err, data) => {
+                if (err) {
+                    return res.send("Internal Server Error");
+                } else {
+                    return res.redirect("/");
+                }
+            });
         }
-    });
+    })
 });
 
 app.post("/delete", upload.fields([]), (req, res) => {
